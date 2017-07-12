@@ -1,4 +1,4 @@
-﻿<#remove-item alias:cd -force
+<#remove-item alias:cd -force
 function cd($target)
 {
     if($target.EndsWith(".lnk"))
@@ -10,51 +10,73 @@ function cd($target)
     }
     else {
         set-location $target
-    }
+    }the above is the altering of the 'cd' alias so that it can be used on a shortcut to go to the shortcut's target
 }could be setup in user profile for Powershell but I figured this would allow for easier transporting the script#>
-$origin = Read-host "Please enter the directory that contains the folder that is being moved. Please include path, 
-for example 'C:\Users\your.name\Desktop\Prod'"
-
+function DangerousArchive{
+[cmdletbinding(SupportsShouldProcess=$True)]
+Param( 
+)
+#above allows whatif to be used for this script, below is the user-input parameters
+Add-Type -AssemblyName System.Windows.Forms
+$FolderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
+$FolderBrowser.Description = 'First select the directory that contains the folder you desire to move'
+$result = $FolderBrowser.ShowDialog((New-Object System.Windows.Forms.Form -Property @{TopMost = $true }))
+if ($result -eq [Windows.Forms.DialogResult]::OK){
+    $FolderBrowser.SelectedPath
+    $origin = $FolderBrowser.SelectedPath
+    
+}
+else {
+    exit
+}
 $youngestChildDir = Read-host "Please enter the name of the folder that you wish to move, for example 'prod'"
+Add-Type -AssemblyName System.Windows.Forms
+$FolderBrowserZ = New-Object System.Windows.Forms.FolderBrowserDialog
+$FolderBrowserZ.Description = 'Finally, choose the location you want to move the folder to'
+$result = $FolderBrowserZ.ShowDialog((New-Object System.Windows.Forms.Form -Property @{TopMost = $true }))
+if ($result -eq [Windows.Forms.DialogResult]::OK){
+    $FolderBrowserZ.SelectedPath
+    $targetdestination = $FolderBrowserZ.SelectedPath
+    
+}
+else {
+    exit
+}
 
-$targetdestination = Read-host "Please enter the directory that you wish to move items TO. Please include path,
-for example 'C:\Archives'"
-Write-Output "$origin is the directory of the folder to be moved"
-Write-Output "$targetdestination is the destination that the folder will be moved to"
-Write-Output "$youngestChildDir is the folder to be moved"
-$lnkFiles = Get-ChildItem -Path "$origin" -Recurse -Include *.lnk
-#cd $origin
-foreach($item in $lnkFiles){
-    mkdir ("$item" + '1')
-    cd "$item"    
-    $sh = new-object -com wscript.shell
-    $tpath = $sh.CreateShortcut($item).TargetPath    
-    Get-ChildItem -path $tPath -Recurse | Move-Item -Destination ("$item" + '1')   
-    del $item
-    #need to also delete the directory that is left behind where the shortcut was pointed at
-     #****************** DOESN'T WORK IF SHORTCUT EXISTS THAT IS HIGHER ORDER THAN DESIRED DIRECTORY **********
-}    #Above is what searches for shortcuts and moves the contents of the shortcuts' target back into the
-     #shortcut's original directory and then deletes the shortcut
+
+$lnkFiles = Get-ChildItem -Path "$origin\$youngestChildDir" -Recurse -Include *.lnk
+
+if ($lnkFiles.length -gt 0){ 
+    foreach($item in $lnkFiles){
+        $fileNoExt = "$item".Substring(0, "$item".LastIndexOf('.'))
+        mkdir "$fileNoExt"
+        cd "$item"    
+        $sh = new-object -com wscript.shell
+        $tpath = $sh.CreateShortcut($item).TargetPath    
+        Get-ChildItem -path $tPath -Recurse | Move-Item -Destination "$fileNoExt"   
+        del $item
+
+    }    #Above is what searches for shortcuts and moves the contents of the shortcuts' target back into the
+}      #shortcut's original directory and then deletes the shortcut
     
     #below creates a directory in the new location and then moves all the files within the current location into it
 
-mkdir "$targetdestination\$youngestChildDir" # currently this only really works for directories, which should be enougbh
-Write-Output "I always ride the $targetdestination\$youngestChildDir path on my way home!"
+mkdir "$targetdestination\$youngestChildDir" 
 cd $origin
 
 Get-ChildItem -path "$origin\$youngestChildDir" -Recurse | Move-Item -Destination "$targetdestination\$youngestChildDir"
-#
 $ShortcutFile = "$origin\$youngestChildDir.lnk" 
 $WScriptShell = New-Object -ComObject WScript.Shell 
 $Shortcut = $WScriptShell.CreateShortcut($ShortcutFile) 
 $Shortcut.TargetPath = "$targetdestination\$youngestChildDir" 
 $Shortcut.Save() 
 cd C:\
+Write-Output "$targetdestination\$youngestChildDir should be the destination of the shortcut"
 rmdir "$origin\$youngestChildDir"
 
 # below should recursively remove empty folders from target directory
 Get-ChildItem -path $targetdestination -recurse | Where {$_.PSIsContainer -and `
 @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} |
 Remove-Item -recurse
-#
-#rename the .lnk1 directories
+
+}
